@@ -1,6 +1,10 @@
-_player(screen, scaled_player_x, scaled_player_y, camera_x, camera_y, scale_x):
-#     """Draw the player sprite instead of a circle."""
-#     size = int(player_radius * 4 * scale_x)  # Adjust size multiplier as needed
-#     player_img_scaled = pygame.transform.scale(player_img, (size, size))
-#     screen.blit(player_img_scaled, (scaled_player_x - camera_x - size // 2, 
-#                                     scaled_player_y - camera_y
+ start_y == end_y:
+        #     pygame.draw.line(screen, WHITE, (scaled_rect_x, scaled_rect_y),
+        #                      (scaled_rect_x + scaled_rect_width, scaled_rect_y), 2)
+        #     pygame.draw.line(screen, WHITE, (scaled_rect_x, scaled_rect_y + scaled_rect_height),
+        #                      (scaled_rect_x + scaled_rect_width, scaled_rect_y + scaled_rect_height), 2)
+        # else:
+        #     pygame.draw.line(screen, WHITE, (scaled_rect_x, scaled_rect_y),
+        #                      (scaled_rect_x, scaled_rect_y + scaled_rect_height), 2)
+        #     pygame.draw.line(screen, WHITE, (scaled_rect_x + scaled_rect_width, scaled_rect_y),
+        #                      (sca
