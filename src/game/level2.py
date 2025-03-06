@@ -32,8 +32,8 @@ base_hallway = [
     # === WESTERN WING ===
     [175, 450, 175, 800, 150, "western_corridor"],
     [175, 800, -225, 800, 100, "treasure_approach"],
-    [-225, 800, -225, 1200, 120, "miniboss_approach"],
-    [-425, 1200, 175, 1200, 200, "miniboss_chamber"],
+    [-225, 800, -225, 1500, 120, "miniboss_approach"],
+    [-625, 1400, -225, 1400, 200, "miniboss_chamber"],
     
     # === CENTRAL PATHWAYS ===
     [900, 350, 1600, 350, 200, "main_hallway"],
@@ -85,7 +85,7 @@ base_hallway = [
     
     # === ENTRANCE ZONE ===
     [100, 250, 900, 250, 400, "entrance_hall"],
-    [100, 415, 900, 415, 60, "entranceHall_Walkway"],
+    [100, 415, 900, 415, 65, "entranceHall_Walkway"],
     
     [850, 250, 900, 250, 400, "mainHallway_Wall"],
     
@@ -181,9 +181,14 @@ def tile_multiple_images(image_list, target_width, target_height, seed=None):
     return tiled_surf
 
 # Define a vertical tile set (using the same images as the central shaft)
-vertical_tile_set = [load_image("CaveFloor.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png")]
+vertical_tile_set = [load_image("CaveFloor.png"), load_image("CaveFloor.png"), load_image("CaveFloor.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("CaveFloor1.png"), load_image("Lava.png")]
 
 Cave_Wall = [load_image("CaveWall.png")]
+
+LavaCaveFloor_crop = load_image("LavaHallwayFloor2.jpg")
+cropped_LavaCaveFloor = LavaCaveFloor_crop.subsurface(
+    pygame.Rect(0, 0, LavaCaveFloor_crop.get_width(), LavaCaveFloor_crop.get_height()//2)
+).copy()
 
 # Cache for tiled hallway images
 tiled_hallway_cache = {}
@@ -192,14 +197,17 @@ tiled_hallway_cache = {}
 # For vertical hallways (where start_x == end_x), we assign the vertical tile set.
 hallway_images = {
     "entrance_hall": shared_image,
-    "entranceHall_Walkway" : load_image("LavaCaveFloor.jpg"),
+    "entranceHall_Walkway" : cropped_LavaCaveFloor,
     "main_hallway": cropped_main_hallway,
     "mainHallway_Wall": Cave_Wall,
     
-    "western_corridor": vertical_tile_set,
-    "treasure_approach": default_hallway_img,
+    
+    "western_corridor": load_image("LavaHallwayFloor1.jpg"), #vertical_tile_set,
+    "treasure_approach": load_image("lvl2_LavaCave.jpg"),
     "miniboss_approach": vertical_tile_set,
     "miniboss_chamber": load_image("lvl2_MiniBoss2.jpg"),
+    
+    
     "LavaJump" : load_image("Lava.png"),
     "central_shaft": vertical_tile_set,
     "lower_connector": default_hallway_img,
