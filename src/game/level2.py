@@ -39,15 +39,15 @@ doors = [
      "destination": "eastern_complex", "dest_x": 1600, "dest_y": 350, "name": "Eastern Complex"},
     # Changed this door to lead directly to the Boss Arena:
     {"x": 800, "y": 415, "width": 40, "height": 65,
-     "destination": "boss_arena", "dest_x": 2400, "dest_y": 2200, "name": "Boss Arena"}
+     "destination": "Boss_room", "dest_x": 2400, "dest_y": 2200, "name": "Boss Room"}
 ]
 
-# New area transition door: (if needed, but now the door from Entrance goes directly to Boss Arena)
+# # New area transition door: (if needed, but now the door from Entrance goes directly to Boss Arena)
 area_transition_doors = {
     # You can leave this in place if you want an alternative transition; otherwise, it may not be used.
     "lower_labyrinth": {  # This key is no longer used, since lower_labyrinth is removed.
         "x": 1700, "y": 1850, "width": 40, "height": 65,
-        "destination": "boss_arena", "dest_x": 2400, "dest_y": 2200,
+        "destination": "Boss_arena", "dest_x": 2400, "dest_y": 2200,
         "name": "Enter Boss Arena"
     }
 }
@@ -57,7 +57,6 @@ area_return_doors = {
     "western_wing": {"x": 175, "y": 450, "destination": "entrance_hall", "dest_x": 200, "dest_y": 300, "name": "Return to Entrance"},
     "central_pathways": {"x": 500, "y": 450, "destination": "entrance_hall", "dest_x": 400, "dest_y": 300, "name": "Return to Entrance"},
     "eastern_complex": {"x": 1600, "y": 350, "destination": "entrance_hall", "dest_x": 600, "dest_y": 300, "name": "Return to Entrance"},
-    # Removed lower_labyrinth return door.
     "boss_arena": {"x": 2400, "y": 2200, "destination": "entrance_hall", "dest_x": 500, "dest_y": 300, "name": "Emergency Exit"}
 }
 
@@ -78,13 +77,12 @@ base_hallway = [
     [-685, 1400, -285, 1400, 200, "miniboss_chamber"],
     
     # === CENTRAL PATHWAYS ===
-    [900, 350, 1600, 350, 200, "main_hallway"],
-    [500, 450, 500, 500, 130, "LavaJump"],
-    [500, 500, 500, 1400, 130, "central_shaft"],
-    [500, 1400, 1000, 1400, 130, "lower_connector"],
-    [1000, 1400, 1000, 1800, 150, "water_entrance"],
-    [700, 1800, 1000, 1800, 200, "water_room_west"],
-    [1000, 1800, 1300, 1800, 200, "water_room_east"],
+    [500, 450, 500, 1400, 130, "central_shaft"],
+    [430, 1400, 1000, 1400, 130, "lower_connector"],
+    [1000, 1000, 1000, 1900, 150, "room_entrance"],
+    [850, 1850, 925, 1850, 100, "room_hallway"],
+    [250, 1800, 850, 1800, 200, "central_mainRoom"],
+    
     
     # === EASTERN COMPLEX ===
     [1600, 350, 2400, 350, 200, "eastern_corridor"],
@@ -96,25 +94,24 @@ base_hallway = [
     [2600, 150, 3400, 150, 400, "eastern_room"],
     
     # === NEW PRINCESS RESCUE PATH ===
-    [2800, 2200, 2800, 3000, 150, "princess_corridor"],
+    [3000, 2275, 3500, 2275, 250, "princess_corridor"],
     
     # === BOSS ARENA ===
     [2200, 2200, 3000, 2200, 400, "boss_room"],
     [2650, 2300, 2750, 2300, 80, "boss_throne"],
-    [3000, 2200, 3400, 2200, 150, "escape_passage"],
-    [3400, 2200, 3400, 1400, 150, "escape_vertical"],
-    [3400, 1400, 4000, 1400, 200, "final_corridor"],
+    [3500, 2325, 3800, 2325, 150, "escape_passage"],
+    [3800, 2400, 3800, 1800, 150, "escape_vertical"],
+    [3725, 1800, 4400, 1800, 200, "final_corridor"],
 ]
 
-# Update area groupings.
-# Removed "lower_labyrinth" from the dictionary.
+#define list of hallway behind each portal
 area_hallways = {
     "entrance_hall": ["entrance_hall"],
     "western_wing": ["western_corridor", "treasure_approach", "LavaJump_Western", "miniboss_approach", "miniboss_chamber"],
-    "central_pathways": ["main_hallway", "LavaJump", "central_shaft", "lower_connector", "water_entrance", 
-                         "water_room_west", "water_room_east"],
+    "central_pathways": ["central_shaft", "lower_connector", "room_entrance", "room_hallway",
+                         "central_mainRoom"],
     "eastern_complex": ["eastern_corridor", "eastern_down", "eastern_middle", "eastern_up_bottom", "eastern_up_transition", "eastern_up_top", "eastern_room"],
-    "boss_arena": ["boss_room", "boss_throne", "princess_corridor", "escape_passage", "escape_vertical", "final_corridor"]
+    "Boss_room": ["boss_room", "boss_throne", "princess_corridor", "escape_passage", "escape_vertical", "final_corridor"]
 }
 
 # -----------------------------------------------------------
@@ -289,12 +286,11 @@ hallway_images = {
     "miniboss_chamber": [load_image("backgrounds/LavaFloorRock1.png", scale=0.5)],
     
     # --- Door 2: Central Pathways ---
-    "main_hallway": horizontal_tiles,
-    "central_shaft": vertical_tiles,
-    "lower_connector": horizontal_tiles,
-    "water_entrance": vertical_tiles,
-    "water_room_west": accent_tiles,
-    "water_room_east": accent_tiles,
+    "central_shaft": [load_image("backgrounds/lvl2_CrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_CrystalCaveFloor1.jpg")],
+    "lower_connector": [load_image("backgrounds/lvl2_CrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_CrystalCaveFloor1.jpg")],
+    "room_entrance": [load_image("backgrounds/lvl2_CrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_CrystalCaveFloor1.jpg")],
+    "room_hallway": [load_image("backgrounds/lvl2_CrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_CrystalCaveFloor1.jpg")],
+    "central_mainRoom": load_image("backgrounds/MysticalCave.jpg"),
     
     # --- Door 3: Eastern Complex ---
     "eastern_corridor": load_image("backgrounds/lvl2_CaveHallway.jpg"),   
@@ -310,13 +306,15 @@ hallway_images = {
     "eastern_room": load_image("backgrounds/lvl2_WaterPool.jpg"),
     
     # --- Boss Arena (directly reached from Lower Labyrinth) ---
+    
+    "princess_corridor": load_image("backgrounds/lvl2_PrincessCage.jpg"),
 
     "boss_room": load_image("backgrounds/lvl2_BossMain.jpg"),
 
     "boss_throne": feature_tiles,
-    "escape_passage": horizontal_tiles,
-    "escape_vertical": vertical_tiles,
-    "final_corridor": horizontal_tiles,
+    "escape_passage": [load_image("backgrounds/lvl2_BossCrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_BossCrystalCaveFloor1.jpg")],
+    "escape_vertical": [load_image("backgrounds/lvl2_BossCrystalCaveFloor.jpg"), load_image("backgrounds/lvl2_BossCrystalCaveFloor1.jpg")],
+    "final_corridor": load_image("backgrounds/lvl2_BossCrystalCave.jpg"),
 }
 
 default_hallway_img = horizontal_tiles
