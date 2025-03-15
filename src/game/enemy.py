@@ -538,7 +538,7 @@ class Golem(Enemy):
 
 
 class Boss2(Enemy):
-    def __init__(self, x, y, is_in_hallway_func, health=70):
+    def __init__(self, x, y, is_in_hallway_func, health=300):
         # Load animations specifically for Boss2
         animations = {
             "idle": load_animation("enemies/level2/boss_idle", "png", 3, 1.0),
@@ -624,6 +624,8 @@ class Boss2(Enemy):
                 self.damage /= 1.5  # Reset damage
                 self.attack_cooldown /= 0.8  # Reset attack cooldown
                 self.special_attack_cooldown /= 0.7  # Reset special cooldown
+                self.attack_timer = 0  
+                self.is_attacking = False
                 
                 # Ensure boss resumes proper behavior
                 if player is not None:
@@ -993,6 +995,9 @@ class Boss2(Enemy):
         self.attack_cooldown *= 0.8  # Faster attacks
         self.special_attack_cooldown *= 0.7  # More frequent special attacks
         
+        self.attack_timer = 0  
+        self.is_attacking = False
+        
         shake_intensity = 15
         shake_duration = 20
     
@@ -1009,6 +1014,9 @@ class Boss2(Enemy):
                 if self.last_health_threshold - self.health >= 50 and self.health != 0:
                     self.become_angry()
                     self.last_health_threshold = self.health  # Update last threshold
+                    self.is_attacking = False
+                    self.attack_timer = 0
+                    self.is_charging_special = False
                     return  # Stop further damage processing
     
                 # Handle death

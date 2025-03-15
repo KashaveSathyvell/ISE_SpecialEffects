@@ -381,7 +381,7 @@ class Character:
             self.die()
         
         return True
-
+    
     def draw(self, surface):
         if self.hit_effect and not self.hit_visible:
             # Draw white silhouette for hit effect
@@ -392,6 +392,7 @@ class Character:
 
         # Draw small health bar
         self.draw_health_bar(surface)
+
 
     def draw_health_bar(self, surface):
         bar_width, bar_height = 40, 5

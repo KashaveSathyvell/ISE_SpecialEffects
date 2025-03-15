@@ -1531,6 +1531,7 @@ while running:
             if not spark.alive:
                 sparks.pop(i)
     
+    
         if is_teleporting:
             update_space_teleport(dt * 1000) 
             screen.fill((0, 0, 20))  # Dark background
