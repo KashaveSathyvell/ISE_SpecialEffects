@@ -1097,20 +1097,6 @@ def is_near_door():
             return door
     return None
 
-def teleport_player(destination, dest_x, dest_y):
-    global current_area, is_teleporting, teleport_start_time, space_particles, warp_index, destination_info
-
-    is_teleporting = True
-    teleport_start_time = pygame.time.get_ticks()
-    warp_index = 0  # Reset warp animation index
-
-    destination_info = {"destination": destination, "dest_x": dest_x, "dest_y": dest_y}
-
-    teleport_start_sound.play()
-    teleport_travel_sound.play()  # Play the travel sound right away
-    # initialize_space_particles(150)  # Create warp effect
-
-
 is_teleporting = False
 
 
@@ -1307,11 +1293,24 @@ def show_victory_screen():
                 pygame.quit()
                 sys.exit()
 
-
+def shake_screen():
+    # Apply screen shake effect
+    global camera_x, camera_y, shake_intensity, shake_duration
+    
+    if shake_duration > 0:
+        offset_x = random.randint(-shake_intensity, shake_intensity)
+        offset_y = random.randint(-shake_intensity, shake_intensity)
+        camera_x += offset_x
+        camera_y += offset_y
+        shake_duration -= 1
+        return True
+    return False
 
 princess = Princess(3200, 2400)  # Adjust spawn position
 
 sparks = []
+shake_intensity = 0 
+shake_duration = 0
 
 initialize_space_particles(200) 
 
@@ -1331,7 +1330,7 @@ while running:
                     if door:
                         # Start space teleport instead of regular teleport
                         initiate_space_teleport(door["destination"], door["dest_x"], door["dest_y"])
-
+            
                 #Player Controls
                 if event.key == pygame.K_f:
                     player.toggle_shield()
@@ -1345,7 +1344,10 @@ while running:
                     if player.shielding:
                         player.shielding = False
                     player.use_ultimate(all_enemies, sparks)
-    
+        
+        if not 'previous_area' in locals():
+            previous_area = current_area
+        
         if current_area in enemy_positions:
             all_enemies.update(clock.get_time())
     
@@ -1384,10 +1386,18 @@ while running:
         if current_area == "entrance_hall":
             camera_x = (BASE_WIDTH // 2) - (SCREEN_WIDTH // 2) +100 # Fixed center x
             camera_y = (BASE_HEIGHT // 2) - (SCREEN_HEIGHT // 2)  # Fixed center y
+        elif current_area == "Boss_room" and not all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss2)):
+            scaled_center_x = int(2600 * scale_x)
+            scaled_center_y = int(2200 * scale_y)
+            camera_x = scaled_center_x - (SCREEN_WIDTH // 2)
+            camera_y = scaled_center_y - (SCREEN_HEIGHT // 2)
         else:
             camera_x = scaled_player_x - (SCREEN_WIDTH // 2)
-            camera_y = scaled_player_y - (SCREEN_HEIGHT // 2)
+            camera_y = scaled_player_y - (SCREEN_HEIGHT // 2) 
         
+        shake_applied = shake_screen()
+        if shake_applied:
+            print(f"Shake applied: remaining duration={shake_duration}")
         
         current_hallway_segments = []
         for segment in base_hallway:
@@ -1486,6 +1496,18 @@ while running:
             screen.blit(scaled_mask, (draw_x, draw_y))
         else:
             screen.blit(scaled_image, (draw_x, draw_y))
+    
+        if previous_area != current_area:
+            print(f"Area changed from {previous_area} to {current_area}")
+            
+        # Check if we're entering the boss room
+        if current_area == "Boss_room" and previous_area != "Boss_room":
+            print("Entering Boss room! Triggering shake!")
+            shake_intensity = 20
+            shake_duration = 40
+        
+        # Update previous_area for next frame
+        previous_area = current_area
     
         
         if current_area == "Boss_room" and all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss2)):

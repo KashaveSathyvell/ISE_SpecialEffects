@@ -538,7 +538,7 @@ class Golem(Enemy):
 
 
 class Boss2(Enemy):
-    def __init__(self, x, y, is_in_hallway_func, health=300):
+    def __init__(self, x, y, is_in_hallway_func, health=70):
         # Load animations specifically for Boss2
         animations = {
             "idle": load_animation("enemies/level2/boss_idle", "png", 3, 1.0),
@@ -992,6 +992,9 @@ class Boss2(Enemy):
         self.damage *= 1.5
         self.attack_cooldown *= 0.8  # Faster attacks
         self.special_attack_cooldown *= 0.7  # More frequent special attacks
+        
+        shake_intensity = 15
+        shake_duration = 20
     
         print("Boss has entered ANGRY state and is INVINCIBLE!")
 
