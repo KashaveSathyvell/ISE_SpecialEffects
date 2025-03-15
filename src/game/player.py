@@ -1,6 +1,10 @@
 import pygame
 import os
 import sys
+import math
+import random
+
+from powerups import Spark 
 
 STANDARD_HEIGHT = 75
 
@@ -86,7 +90,8 @@ class Character:
                 frame_width = strip_img.get_width() // count
 
                 right_frames, right_masks = [], []
-
+            
+                
                 for i in range(count):
                     frame_rect = pygame.Rect(i * frame_width, 0, frame_width, strip_img.get_height())
                     frame = strip_img.subsurface(frame_rect)
@@ -243,7 +248,7 @@ class Character:
         self.shielding = active
         return True
 
-    def use_ultimate(self, enemies):
+    def use_ultimate(self, enemies, sparks):
         if self.ultimate_ready and not self.dead and not self.attacking:
             self.using_ultimate = True
             self.ultimate_ready = False
@@ -255,6 +260,19 @@ class Character:
                 if self.check_collision(enemy):  # Sword hits enemy
                     enemy.take_damage(self.ultimate_damage)  
                     print(f"Hit enemy! Enemy health: {enemy.health}")
+                    
+                    # Generate sparks at impact
+                    impact_x = enemy.rect.centerx  
+                    impact_y = enemy.rect.top + 10  
+    
+                    for _ in range(10):  # Increase number of sparks
+                        sparks.append(Spark(
+                            [impact_x, impact_y], 
+                            math.radians(random.randint(0, 360)), 
+                            random.uniform(2, 4),  # Increase speed
+                            random.choice([(255, 0, 0)]), 
+                            2  # size of sparks
+                        ))
             
             return True
         return False
@@ -279,16 +297,30 @@ class Character:
             self.x += dx
             self.y += dy
     
-    def attack(self, enemies):
+    def attack(self, enemies, sparks):
         if not self.attacking and not self.using_ultimate and not self.dead:
             self.attacking = True
             self.frame_index = 0  # Restart animation
-    
+            
             # Check for enemy collisions
             for enemy in enemies:
                 if self.check_collision(enemy):  # Sword hits enemy
-                    enemy.take_damage(self.damage_amount)  
+                    enemy.take_damage(self.damage_amount)
                     print(f"Hit enemy! Enemy health: {enemy.health}")
+    
+                    # Generate sparks at impact
+                    impact_x = enemy.rect.centerx  
+                    impact_y = enemy.rect.top + 10  
+    
+                    for _ in range(10):  # Increase number of sparks
+                        sparks.append(Spark(
+                            [impact_x, impact_y], 
+                            math.radians(random.randint(0, 360)), 
+                            random.uniform(2, 4),  # Increase speed
+                            random.choice([(255, 255, 255), (255, 220, 70)]), 
+                            2  # size of sparks
+                        ))
+
 
     def jump(self):
         if not self.jumping and not self.dead:

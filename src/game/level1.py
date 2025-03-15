@@ -3,9 +3,11 @@ import sys
 import os
 import random
 import math
+import json
 
-from enemy import Enemy, load_mob_animations
+from enemy import Enemy, load_mob_animations, Boss1
 from player import Character
+from powerups import Spark
 
 # Initialize Pygame
 pygame.init()
@@ -30,9 +32,58 @@ DOOR_COLOR = (150, 75, 0)
 DOOR_FRAME_COLOR = (180, 100, 20)
 
 
+def show_story_screen():
+    """Displays the story introduction screen before the game starts."""
+    font_title = pygame.font.SysFont('Arial', 50, bold=True)
+    font_text = pygame.font.SysFont('Arial', 28)
+
+    # Story text
+    title_text = "Dark Forces Have Struck!"
+    story_lines = [
+        "You were tasked with guarding the royal princess...",
+        "But in the dead of night, a horde of demons attacked.",
+        "The princess was taken into the depths of the dungeon.",
+        "Now, you must embark on a dangerous quest to rescue her.",
+        "Prepare yourself, brave warrior!"
+    ]
+
+    # Background color
+    screen.fill((0, 0, 0))
+
+    # Render title
+    title_rendered = font_title.render(title_text, True, (255, 0, 0))
+    screen.blit(title_rendered, (SCREEN_WIDTH // 2 - title_rendered.get_width() // 2, 50))
+
+    # Render story text line by line
+    for i, line in enumerate(story_lines):
+        text_rendered = font_text.render(line, True, (255, 255, 255))
+        screen.blit(text_rendered, (SCREEN_WIDTH // 2 - text_rendered.get_width() // 2, 150 + i * 40))
+
+    # Render instruction text
+    instruction = font_text.render("Press SPACE to begin your journey...", True, (200, 200, 0))
+    screen.blit(instruction, (SCREEN_WIDTH // 2 - instruction.get_width() // 2, SCREEN_HEIGHT - 100))
+
+    pygame.display.flip()  # Update the display
+
+    # Wait for user input
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:  # Press SPACE to start
+                    waiting = False
+
+
+
 # --- Player Setup ---
-player = Character(400, 465, "Knight", 75)  # (x, y, character type, HP)
+player = Character(400, 667, "Knight", 75)  # (x, y, character type, HP)
 player.speed = 3  # Set movement speeds
+
+boss1_defeated = False  # Track if Boss1 is defeated
+
 
 # Set frame counts for animations
 frame_counts = {
@@ -57,8 +108,15 @@ doors = [
      "destination": "left_path", "dest_x": 250, "dest_y": 430, "name": "Left Path"},
     {"x": 450, "y": 529, "width": 40, "height": 65,
      "destination": "right_path", "dest_x": 550, "dest_y": 430, "name": "Right Path"},
+     # Add the portal to level 2 (initially hidden)
 ]
 
+portal_to_level2 = {
+    "x": 380, "y": 529, "width": 40, "height": 65,
+    "destination": "level2", "dest_x": 400, "dest_y": 450, 
+    "name": "Portal to Level 2",
+    "visible": False  # Initially hidden
+}
 
 
 # Transition to Level 2
@@ -865,6 +923,7 @@ def is_in_hallway(pos_x, pos_y):
                 return True
     return False
 
+
 # Check if the player is near any door (entrance, transition, or return)
 def is_near_door():
     threshold = 50  # Interaction distance
@@ -994,6 +1053,9 @@ def update_space_teleport(elapsed_ms):
         # Play end sound
         teleport_end_sound.play()
         
+        #spawn enemy
+        spawn_enemies_for_area(teleport_destination_info["destination"])
+        
         # Actually teleport the player
         if teleport_destination_info:
             current_area = teleport_destination_info["destination"]
@@ -1019,8 +1081,8 @@ def update_space_teleport(elapsed_ms):
                 
     return teleport_active
 
-# Also modify the draw_space_teleport function to adjust the transitions
-# Modified draw_space_teleport function with enhanced movement effects
+
+
 def draw_space_teleport(screen):
     if not teleport_active:
         return
@@ -1029,159 +1091,198 @@ def draw_space_teleport(screen):
     teleport_elapsed = current_time - teleport_start_time
     progress = min(1.0, teleport_elapsed / teleport_duration)
     
-    # Get the current warp image
+    # Warp tunnel effect parameters
     warp_img = warp_images[teleport_warp_frame]
-    
-    # Add rotation effect based on progress and time
-    rotation_angle = (teleport_elapsed / 50) % 360  # Full rotation every 18 seconds
-    
-    # Add pulsing/breathing effect
-    pulse_amount = math.sin(teleport_elapsed / 200) * 0.15  # Sine wave for smooth pulsing
-    
-    # Add spiral zoom effect based on progress
+    rotation_angle = (teleport_elapsed / 50) % 360
+    pulse_amount = math.sin(teleport_elapsed / 200) * 0.15
+
+    # Spiral zoom effect
     if progress < 0.25:
-        # Start phase - growing tunnel with spiral
         base_scale = progress / 0.25
-        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1 * progress  # Increasing spiral
+        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1 * progress
     elif progress > 0.75:
-        # End phase - shrinking tunnel with reverse spiral
         base_scale = (1.0 - progress) / 0.25
-        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1 * (1.0 - progress)  # Decreasing spiral
+        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1 * (1.0 - progress)
     else:
-        # Middle phase - stable tunnel with maximum spiral
         base_scale = 1.0
-        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1  # Consistent spiral
-    
-    # Combine scaling effects
+        spiral_factor = math.sin(teleport_elapsed / 100) * 0.1
+
     scale = base_scale * (1.0 + pulse_amount)
-    
-    # Calculate alpha for fading
-    if progress < 0.25:
-        alpha = int(255 * min(1.0, progress * 3))
-    elif progress > 0.75:
-        alpha = int(255 * min(1.0, (1.0 - progress) * 3))
-    else:
-        alpha = 255
-    
-    # Scale the warp image
-    scaled_width = int(SCREEN_WIDTH * scale)
-    scaled_height = int(SCREEN_HEIGHT * scale)
-    
-    # Create a temporary surface for rotation and additional effects
-    temp_surface = pygame.Surface((scaled_width, scaled_height), pygame.SRCALPHA)
-    
-    # Scale the warp image
-    scaled_warp = pygame.transform.scale(warp_img, (scaled_width, scaled_height))
+    alpha = 255 if 0.25 <= progress <= 0.75 else int(255 * (progress * 3 if progress < 0.25 else (1 - progress) * 3))
+
+    # Create warp tunnel surface
+    scaled_warp = pygame.transform.scale(warp_img, (int(SCREEN_WIDTH * scale), int(SCREEN_HEIGHT * scale)))
+    temp_surface = pygame.Surface(scaled_warp.get_size(), pygame.SRCALPHA)
     temp_surface.blit(scaled_warp, (0, 0))
-    
-    # Apply vortex distortion (spiral effect)
-    vortex_surface = pygame.Surface((scaled_width, scaled_height), pygame.SRCALPHA)
-    
-    # Create spiral distortion by mapping pixels with offset
-    for x in range(0, scaled_width, 4):  # Step by 4 for performance
-        for y in range(0, scaled_height, 4):
-            # Calculate distance from center
-            dx = x - scaled_width // 2
-            dy = y - scaled_height // 2
-            distance = math.sqrt(dx*dx + dy*dy)
-            
+
+    # Apply spiral distortion
+    vortex_surface = pygame.Surface(temp_surface.get_size(), pygame.SRCALPHA)
+    for x in range(0, temp_surface.get_width(), 4):
+        for y in range(0, temp_surface.get_height(), 4):
+            dx = x - temp_surface.get_width() // 2
+            dy = y - temp_surface.get_height() // 2
+            distance = math.hypot(dx, dy)
             if distance > 0:
-                # Calculate angle offset based on distance
-                angle_offset = spiral_factor * distance / (scaled_width / 2)
-                
-                # Convert to polar coordinates
                 angle = math.atan2(dy, dx)
-                
-                # Apply spiral distortion
-                new_angle = angle + angle_offset
+                new_angle = angle + spiral_factor * distance / (temp_surface.get_width() / 2)
                 new_distance = distance * (1.0 + pulse_amount * math.sin(angle * 4))
-                
-                # Convert back to cartesian coordinates
-                new_x = int(new_distance * math.cos(new_angle)) + scaled_width // 2
-                new_y = int(new_distance * math.sin(new_angle)) + scaled_height // 2
-                
-                # Only copy pixels that are within bounds
-                if 0 <= new_x < scaled_width and 0 <= new_y < scaled_height and 0 <= x < scaled_width and 0 <= y < scaled_height:
-                    # Copy a small rect for performance
-                    rect = pygame.Rect(new_x, new_y, 4, 4)
-                    if rect.right <= scaled_width and rect.bottom <= scaled_height:
-                        vortex_surface.blit(temp_surface, (x, y), rect)
-    
-    # Apply rotation for additional movement
-    if progress > 0.1 and progress < 0.9:
-        rotated_surface = pygame.transform.rotate(vortex_surface, rotation_angle * (1 if progress < 0.5 else -1))
-    else:
-        rotated_surface = vortex_surface
-    
-    # Position in center (accounting for rotation changing dimensions)
-    x = (SCREEN_WIDTH - rotated_surface.get_width()) // 2
-    y = (SCREEN_HEIGHT - rotated_surface.get_height()) // 2
-    
-    # Apply horizontal wave motion
-    wave_x = math.sin(teleport_elapsed / 300) * SCREEN_WIDTH * 0.05
-    wave_y = math.cos(teleport_elapsed / 250) * SCREEN_HEIGHT * 0.05
-    
-    # Set alpha
-    if alpha < 255:
-        rotated_surface.set_alpha(alpha)
-    
-    # Draw the final effect
-    screen.blit(rotated_surface, (x + wave_x, y + wave_y))
-    
-    # Draw particles with enhanced movement
-    for particle in space_particles:
-        # Update particle movement pattern during teleport
-        if teleport_elapsed % 500 < 250:
-            # First half of cycle - increase speed
-            particle.speed *= 1.01
+                new_x = int(new_distance * math.cos(new_angle)) + temp_surface.get_width() // 2
+                new_y = int(new_distance * math.sin(new_angle)) + temp_surface.get_height() // 2
+                if 0 <= new_x < temp_surface.get_width() and 0 <= new_y < temp_surface.get_height():
+                    vortex_surface.blit(temp_surface, (x, y), (new_x, new_y, 4, 4))
+
+    # Final warp tunnel rendering
+    rotated_surface = pygame.transform.rotate(vortex_surface, rotation_angle * (1 if progress < 0.5 else -1))
+    rotated_surface.set_alpha(alpha)
+    screen.blit(rotated_surface, 
+               ((SCREEN_WIDTH - rotated_surface.get_width()) // 2 + math.sin(teleport_elapsed / 300) * SCREEN_WIDTH * 0.05,
+                (SCREEN_HEIGHT - rotated_surface.get_height()) // 2 + math.cos(teleport_elapsed / 250) * SCREEN_HEIGHT * 0.05))
+
+    # Player teleportation effects
+    if teleport_origin and teleport_destination and player:
+        FADE_DURATION = 0.3
+        SHOCKWAVE_DURATION = 0.15
+        
+        # Position and alpha calculation
+        if progress < FADE_DURATION:
+            pos = pygame.math.Vector2(teleport_origin)
+            alpha_player = 255 * (1 - progress / FADE_DURATION)
+            show_shockwave = progress < SHOCKWAVE_DURATION
+        elif progress > 1 - FADE_DURATION:
+            t = (progress - (1 - FADE_DURATION)) / FADE_DURATION
+            pos = pygame.math.Vector2(teleport_destination)
+            alpha_player = 255 * t
+            show_shockwave = (1 - progress) < SHOCKWAVE_DURATION
         else:
-            # Second half of cycle - normalize speed
-            particle.speed *= 0.99
-        
+            pos = pygame.math.Vector2(-1000, -1000)
+            alpha_player = 0
+            show_shockwave = False
+
+        # Screen coordinates
+        scale_x = SCREEN_WIDTH / BASE_WIDTH
+        scale_y = SCREEN_HEIGHT / BASE_HEIGHT
+        screen_pos = (pos.x * scale_x, pos.y * scale_y)
+        centered_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+
+        if alpha_player > 0:
+            # Save player state
+            original_rect = player.rect.copy()
+            original_pos = (player.x, player.y)
+            player.rect.midbottom = centered_pos
+
+            # 1. Shockwave effect
+            if show_shockwave:
+                shockwave_radius = 100 * (progress % SHOCKWAVE_DURATION) / SHOCKWAVE_DURATION
+                pygame.draw.circle(screen, (100, 150, 255), centered_pos, int(shockwave_radius), 4)
+                pygame.draw.circle(screen, (200, 255, 255, 100), centered_pos, int(shockwave_radius * 0.8), 2)
+
+            # 2. Motion trail
+            if not hasattr(player, 'teleport_trail'):
+                player.teleport_trail = []
+            
+            if random.random() < 0.3:
+                trail_image = pygame.transform.rotozoom(
+                    player.current_image,
+                    random.uniform(-20, 20),
+                    0.5 + 0.5 * random.random()
+                )
+                trail_image.set_alpha(int(alpha_player * 0.6))
+                player.teleport_trail.append({
+                    'image': trail_image,
+                    'pos': centered_pos,
+                    'time': current_time
+                })
+            
+            # Draw and decay trail
+            for i in reversed(range(len(player.teleport_trail))):
+                segment = player.teleport_trail[i]
+                age = current_time - segment['time']
+                if age > 300:
+                    del player.teleport_trail[i]
+                else:
+                    segment['image'].set_alpha(int(255 - age * 0.8))
+                    screen.blit(segment['image'], segment['pos'])
+
+            # 3. Distortion effect
+            distortion_size = (player.rect.width * 2, player.rect.height * 2)
+            distortion_surface = pygame.Surface(distortion_size, pygame.SRCALPHA)
+            pygame.draw.circle(distortion_surface, (255, 255, 255, 50), 
+                              (player.rect.width, player.rect.height), 
+                              player.rect.width // 2)
+            screen.blit(distortion_surface, 
+                       (centered_pos[0] - player.rect.width, 
+                        centered_pos[1] - player.rect.height * 1.5))
+
+            # 4. Enhanced glow
+            glow_size = 20 + 10 * math.sin(current_time / 50)
+            glow_surface = pygame.Surface((player.rect.width + glow_size * 2, 
+                                          player.rect.height + glow_size * 2), 
+                                         pygame.SRCALPHA)
+            pygame.draw.ellipse(glow_surface, 
+                              (100, 150, 255, 100 + 50 * math.sin(current_time / 100)), 
+                              (0, 0) + glow_surface.get_size())
+            screen.blit(glow_surface, 
+                       (centered_pos[0] - player.rect.width // 2 - glow_size, 
+                        centered_pos[1] - player.rect.height - glow_size))
+
+            # 5. Main player sprite with shake
+            current_image = player.current_image.copy()
+            current_image.set_alpha(int(alpha_player))
+            
+            if progress > FADE_DURATION and progress < 1 - FADE_DURATION:
+                shake_offset = pygame.math.Vector2(random.uniform(-5, 5), 
+                                                  random.uniform(-5, 5))
+                screen.blit(current_image, 
+                           (centered_pos[0] + shake_offset.x, 
+                            centered_pos[1] + shake_offset.y))
+            else:
+                screen.blit(current_image, centered_pos)
+
+            # Restore player state
+            player.rect = original_rect
+            player.x, player.y = original_pos
+
+    # Enhanced particle system
+    for particle in space_particles:
+        particle.speed *= 1.01 if teleport_elapsed % 500 < 250 else 0.99
         particle.draw(screen)
-    
-    # Add swirling color effects around the edges
-    swirl_count = 12
-    for i in range(swirl_count):
-        angle = (i / swirl_count) * 2 * math.pi + (teleport_elapsed / 1000)
+
+        # Additional particle effects during teleport
+        if hasattr(particle, 'teleport_interaction'):
+            dx = particle.x - centered_pos[0]
+            dy = particle.y - centered_pos[1]
+            distance = math.hypot(dx, dy)
+            
+            if distance < 200:
+                particle.color = (255, 255, 255)
+                particle.size *= 1.02
+                particle.speed *= 0.95
+                particle.angle += math.atan2(dy, dx) * 0.1
+
+    # Swirling color effects
+    for i in range(12):
+        angle = (i / 12) * math.tau + teleport_elapsed / 1000
         radius = SCREEN_WIDTH * 0.4 * (1 + math.sin(teleport_elapsed / 500) * 0.2)
-        swirl_x = SCREEN_WIDTH // 2 + math.cos(angle) * radius
-        swirl_y = SCREEN_HEIGHT // 2 + math.sin(angle) * radius
-        
-        # Create color based on position and time
-        hue = (i / swirl_count * 255 + teleport_elapsed / 20) % 255
-        color = pygame.Color(0, 0, 0)
-        color.hsva = (hue, 70, 100, 50)  # HSV with alpha
-        
-        # Draw swirling particle
-        pygame.draw.circle(
-            screen, 
-            color,
-            (int(swirl_x), int(swirl_y)),
-            int(10 * scale)
-        )
-    
-    # Add overlay flash effect at beginning and end with more dynamic timing
+        pos = pygame.math.Vector2(SCREEN_WIDTH // 2 + math.cos(angle) * radius,
+                                 SCREEN_HEIGHT // 2 + math.sin(angle) * radius)
+        hue = (i * 255 / 12 + teleport_elapsed / 20) % 255
+        color = pygame.Color(0)
+        color.hsva = (hue, 70, 100, 50)
+        pygame.draw.circle(screen, color, pos, 10 * scale)
+
+    # Overlay flash effect
     if progress < 0.08 or progress > 0.92:
         flash_intensity = (0.08 - abs(progress - 0.08)) * 12 if progress < 0.08 else (0.08 - abs(progress - 0.92)) * 12
         flash_alpha = int(255 * flash_intensity)
-        
-        # Add color variation to the flash
-        if progress < 0.08:
-            flash_color = (255, 255, 255)  # White flash at beginning
-        else:
-            # Color-shifting flash at end
-            end_progress = (progress - 0.92) / 0.08  # 0 to 1 during end phase
-            r = int(255 * (1 - end_progress) + 100 * end_progress)
-            g = int(255 * (1 - end_progress) + 150 * end_progress)
-            b = int(255 * (1 - end_progress) + 255 * end_progress)
-            flash_color = (r, g, b)
-            
-        flash_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        flash_color = (255, 255, 255) if progress < 0.08 else (
+            int(255 * (1 - (progress - 0.92) / 0.08) + 100 * ((progress - 0.92) / 0.08)),
+            int(255 * (1 - (progress - 0.92) / 0.08) + 150 * ((progress - 0.92) / 0.08)),
+            int(255 * (1 - (progress - 0.92) / 0.08) + 255 * ((progress - 0.92) / 0.08))
+        )
+        flash_surface = pygame.Surface(screen.get_size())
         flash_surface.fill(flash_color)
         flash_surface.set_alpha(flash_alpha)
         screen.blit(flash_surface, (0, 0))
-
 # Enhanced SpaceParticle class with more dynamic movement
 class SpaceParticle:
     def __init__(self, screen_width, screen_height, z_depth=10, forward=True):
@@ -1377,12 +1478,129 @@ def draw_ui(screen):
         text = font.render(prompt_text, True, WHITE)
         screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT - 40))
 
+
+
+all_enemies = pygame.sprite.Group()
+
+enemy_positions = {
+    "left_path": [("Mob1", (250, 400)), ("Mob3", (250, 250)), ("Mob2", (-150, -100)), ("Mob2", (-50, 200)), ("Mob3", (-250, 0)), ("Mob1", (-100, 200))], 
+    "right_path": [("Mob1", (-100, 200)), ("Mob2", (-50, 200)), ("Mob3", (550, 200)), ("Mob2", (800, 220)), ("Mob3", (1000, 0)), ("Boss1", (600, -200))],
+}
+
+def spawn_enemies_for_area(area):
+    """Spawn enemies when entering a new area."""
+    global all_enemies
+    all_enemies.empty()
+    print("Spawning enemies for area:", area)
+    print("Enemy positions:", enemy_positions)
+
+    if area in enemy_positions:
+        for enemy_type, pos in enemy_positions[area]:
+            if enemy_type == "Boss1":
+                enemy = Boss1(pos[0], pos[1], is_in_hallway)
+            else:
+                animations = load_mob_animations(enemy_type)
+                enemy = Enemy(pos[0], pos[1], animations, is_in_hallway)
+            
+            print("Spawning enemies")
+            all_enemies.add(enemy)
+
+
+
+def check_enemy_attacks(player, enemies):
+    """Check for enemy attacks hitting the player"""
+    for enemy in enemies:
+        # Only check enemies that are currently in an attack state
+        if enemy.can_attack():
+            # Calculate offset for mask collision detection
+            offset_x = enemy.rect.x - player.rect.x
+            offset_y = enemy.rect.y - player.rect.y
+            
+            # Check if attack hitbox overlaps with player
+            if player.current_mask.overlap(enemy.mask, (offset_x, offset_y)):
+                # Deal damage to player
+                damage = enemy.get_damage()
+                player.take_damage(damage)
+
+
+def show_game_over_screen():
+    global running
+
+    # Load font and set text
+    font = pygame.font.SysFont('Arial', 36)
+    game_over_text = font.render("YOU DIED", True, (200, 0, 0))
+    restart_text = font.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
+
+    # Ensure death animation has enough frames
+    death_frames = player.animations.get("death", [player.current_image])
+    death_frame = death_frames[min(2, len(death_frames) - 1)]  # Use frame 2 if possible, else last frame
+    scaled_death_frame = pygame.transform.scale(death_frame, (150, 150))  # Resize image
+
+    while True:
+        screen.fill((0, 0, 0))
+
+        # Draw text
+        screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 100))
+        screen.blit(restart_text, (SCREEN_WIDTH // 2 - 160, SCREEN_HEIGHT // 2 + 20))
+
+        # Draw player's death frame
+        screen.blit(scaled_death_frame, (SCREEN_WIDTH // 2 - 75, SCREEN_HEIGHT // 2 - 200))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+                if event.key == pygame.K_r:
+                    reset_player()  # Call reset function
+                    return  # Exit game over screen
+
+
+def reset_player():
+    global current_area
+    
+    player.health = player.max_health  # Restore full health
+    player.dead = False  # Remove death state
+    player.frame_index = 0  # Reset animation frame
+    player.x, player.y = 400, 667  # Move player back to starting position
+    player.attacking = False
+    player.using_ultimate = False
+    player.shielding = False
+
+    # Ensure animations are working properly
+    player.action = "idle"  
+    
+    current_area = "entrance_hall"
+    
+    all_enemies.empty()
+    
+# Global variable to store player data
+player_state = {}
+
+def save_player_state(player):
+    global player_state  # Use the global dictionary
+    player_state = {
+        "health": player.health,
+        "max_health": player.max_health,
+    }
+
+    # Save to a file as backup
+    with open("player_state.json", "w") as f:
+        json.dump(player_state, f)    
+
 # Initialize game state variables
 clock = pygame.time.Clock()
 movement_effects = []
 particles = []
 step_counter = 0
 running = True
+
+sparks = []
 
 # Animation timers
 portalFrame = 0
@@ -1394,292 +1612,340 @@ torchTime = 0
 initialize_space_particles(200)  # Create 200 space particles
 
 # ==================== MAIN GAME LOOP ====================
-while running:   
-    # Get elapsed time for animations
-    elapsed_ms = clock.get_time()
-    
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.VIDEORESIZE:
-            SCREEN_WIDTH, SCREEN_HEIGHT = event.w, event.h
-            screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
-            # Reinitialize space particles for new screen size
-            initialize_space_particles(200)
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_e and not teleport_active:
-                door = is_near_door()
-                if door:
-                    # Start space teleport instead of regular teleport
-                    initiate_space_teleport(door["destination"], door["dest_x"], door["dest_y"])
-                    
-            #Player Controls
-            if event.key == pygame.K_f:
-                player.toggle_shield()
-            if event.key == pygame.K_q:                
-                player.attack(all_enemies)
-            if event.key == pygame.K_SPACE:
-                player.jump()
-            if event.key == pygame.K_x:
-                player.use_ultimate(all_enemies)
-    
-    # Spawn new particles based on area
-    if current_area == "left_path" and random.random() < 0.05:
-        # Dust particles in left path
-        x = player.x + random.randint(-100, 100)
-        y = player.y + random.randint(-100, 100)
-        color = (200, 200, 200)  # Dust color
-        particles.append(Particle(x, y, color, 0.2, 2, 60))
+show_story_screen()
+
+while running:      
+    if not player.dead:
+        # Get elapsed time for animations
+        elapsed_ms = clock.get_time()
         
-    if current_area == "right_path" and random.random() < 0.05:
-        # Ember particles in right path (lava area)
-        x = player.x + random.randint(-100, 100)
-        y = player.y + random.randint(-100, 100)
-        color = (255, 165, 0)  # Orange embers
-        particles.append(Particle(x, y, color, 0.5, 1, 40))                
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.VIDEORESIZE:
+                SCREEN_WIDTH, SCREEN_HEIGHT = event.w, event.h
+                screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+                # Reinitialize space particles for new screen size
+                initialize_space_particles(200)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_e and not teleport_active:
+                    door = is_near_door()
+                    if door:
+                        # Start space teleport instead of regular teleport
+                        initiate_space_teleport(door["destination"], door["dest_x"], door["dest_y"])
+                        
+                #Player Controls
+                if event.key == pygame.K_f:
+                    player.toggle_shield()
+                if event.key == pygame.K_q:
+                    if player.shielding:
+                        player.shielding = False
+                    player.attack(all_enemies, sparks)
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+                if event.key == pygame.K_x:
+                    if player.shielding:
+                        player.shielding = False
+                    player.use_ultimate(all_enemies, sparks)
         
-    # Handle space teleport if active, otherwise normal movement
-    if teleport_active:
-        # Update the space teleport effect
-        update_space_teleport(elapsed_ms)
-    else:
-        # Handle normal player movement
-        scale_x = SCREEN_WIDTH / BASE_WIDTH
-        scale_y = SCREEN_HEIGHT / BASE_HEIGHT
-        keys = pygame.key.get_pressed()
-        original_pos = (player.x, player.y)
-        #if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-        #    player.x -= player.speed
-        #if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-        #    player.x += player.speed
-        #if keys[pygame.K_UP] or keys[pygame.K_w]:
-        #    player.y -= player.speed
-        #if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-        #    player.y += player.speed
-        # Get movement direction
-        #dx = 0
-        #dy = 0
-        #if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-        #    dx = -player.speed
-        #if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-        #    dx = player.speed
-        #if keys[pygame.K_UP] or keys[pygame.K_w]:
-        #    dy = -player.speed
-        #if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-        #    dy = player.speed
-
-# Move player using character's built-in move method
-    #player.move(dx, dy)
-    #if not is_in_hallway(player.x, player.y):
-        #(player.x, player.y) = original_pos
-    # Get movement direction
-        # Store the original position
-        # Store the original position
-        old_x, old_y = player.x, player.y
-
-        # Calculate movement
-        dx, dy = 0, 0
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            dx = -player.speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx = player.speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            dy = -player.speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            dy = player.speed
-
-        # Apply movement
-        player.move(dx, dy)
-
-        # Check if new position is valid
-        valid_position = True
-
-        # Special handling for entrance hall (cave shape)
-        if current_area == "entrance_hall":
-            # MODIFY THESE VALUES:
-            # ---------------------------------
-            # For the floor area at the bottom of cave:
-            if player.y >= 450:
-                min_x = 300  # Left boundary of visible floor area
-                max_x = 500  # Right boundary of visible floor area
-            # Middle area of cave (where it narrows):
-            elif player.y >= 350:
-                min_x = 360
-                max_x = 440
-            # Upper part of cave floor (stairs area):
-            elif player.y >= 250:
-                min_x = 340
-                max_x = 460
-            # Near the entrance/opening:
-            else:
-                min_x = 360
-                max_x = 440
+        if current_area in enemy_positions:
+                all_enemies.update(clock.get_time())
+        
+        # Spawn new particles based on area
+        if current_area == "left_path" and random.random() < 0.05:
+            # Dust particles in left path
+            x = player.x + random.randint(-100, 100)
+            y = player.y + random.randint(-100, 100)
+            color = (200, 200, 200)  # Dust color
+            particles.append(Particle(x, y, color, 0.2, 2, 60))
             
-            # THESE CONTROL HEIGHT LIMITS:
-            # ---------------------------------
-            min_y = 430  # Don't go higher than the stairs
-            max_y = 465  # Don't go lower than the visible floor
+        if current_area == "right_path" and random.random() < 0.05:
+            # Ember particles in right path (lava area)
+            x = player.x + random.randint(-100, 100)
+            y = player.y + random.randint(-100, 100)
+            color = (255, 165, 0)  # Orange embers
+            particles.append(Particle(x, y, color, 0.5, 1, 40))                
             
-            # Check if position is within entrance bounds
-            within_entrance = min_x <= player.x <= max_x and min_y <= player.y <= max_y
-            
-            if not within_entrance:
-                valid_position = False
+        # Handle space teleport if active, otherwise normal movement
+        if teleport_active:
+            # Update the space teleport effect
+            update_space_teleport(elapsed_ms)
         else:
-            # For other areas, use normal hallway check
-            if not is_in_hallway(player.x, player.y):
-                valid_position = False
+            # Handle normal player movement
+            scale_x = SCREEN_WIDTH / BASE_WIDTH
+            scale_y = SCREEN_HEIGHT / BASE_HEIGHT
+            keys = pygame.key.get_pressed()
+            original_pos = (player.x, player.y)
+    
+            old_x, old_y = player.x, player.y
+    
+            # Calculate movement
+            dx, dy = 0, 0
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                dx = -player.speed
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                dx = player.speed
+            if keys[pygame.K_UP] or keys[pygame.K_w]:
+                dy = -player.speed
+            if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+                dy = player.speed
+    
+            # Apply movement
+            player.move(dx, dy)
+            
+    
+            # Check if new position is valid
+            valid_position = True
+    
+            # Special handling for entrance hall (cave shape)
+            # Special handling for entrance hall (cave shape)
+            if current_area == "entrance_hall":
+                # Base on the visible cave floor in the screenshot
+                # The floor area (bottom of screen)
+                if player.y >= 465:  # Bottom area
+                    min_x = 320  # Left boundary
+                    max_x = 480  # Right boundary
+                # Near the steps
+                else:
+                    min_x = 450  # Left boundary
+                    max_x = 480  # Right boundary
+                
+                # Vertical limits - IMPORTANT!
+                min_y = 400  # Don't go above this (near stairs)
+                max_y = 667  # Don't go below this (bottom of visible floor)
+                
+                # Check if position is within entrance bounds
+                within_entrance = min_x <= player.x <= max_x and min_y <= player.y <= max_y
+                
+                if not within_entrance:
+                    valid_position = False
+    
+            # If position is invalid, roll back to previous position
+            if not valid_position:
+                player.x, player.y = old_x, old_y
+                player.moving = False  # Stop the walking animation
+    
+            # Update player state
+            player.update()
+                
+        # Camera positioning (only if not teleporting)
+        if not teleport_active:
+            scale_x = SCREEN_WIDTH / BASE_WIDTH
+            scale_y = SCREEN_HEIGHT / BASE_HEIGHT
+            scaled_player_x = int(player.x * scale_x)
+            scaled_player_y = int(player.y * scale_y)
+            camera_x = scaled_player_x - (SCREEN_WIDTH // 2)
+            camera_y = scaled_player_y - (SCREEN_HEIGHT // 2)
+            screen.fill(BLACK)
+            
+            # Get current hallway segments
+            current_hallway_segments = []
+            for segment in base_hallway:
+                start_x, start_y, end_x, end_y, width, image_key = segment
+                if image_key in area_hallways.get(current_area, []):
+                    current_hallway_segments.append(segment)
+            
+            # Draw hallways and decorations
+            for segment in current_hallway_segments:
+                start_x, start_y, end_x, end_y, width, image_key = segment
+                half_width = width / 2
+                hallway_image = hallway_images.get(image_key, default_hallway_img)
+                
+                # Calculate segment rectangle
+                if start_y == end_y:
+                    rect_x = min(start_x, end_x)
+                    rect_y = start_y - half_width
+                    rect_width = abs(end_x - start_x)
+                    rect_height = width
+                else:
+                    rect_x = start_x - half_width
+                    rect_y = min(start_y, end_y)
+                    rect_width = width
+                    rect_height = abs(end_y - start_y)
+                    
+                scaled_rect_x = rect_x * scale_x - camera_x
+                scaled_rect_y = rect_y * scale_y - camera_y
+                scaled_rect_width = int(rect_width * scale_x)
+                scaled_rect_height = int(rect_height * scale_y)
+                
+                # Draw hallway segment
+                if isinstance(hallway_image, list):
+                    cache_key = (image_key, scaled_rect_width, scaled_rect_height)
+                    if cache_key not in tiled_hallway_cache:
+                        segment_seed = hash(image_key)
+                        tiled_hallway_cache[cache_key] = tile_multiple_images(
+                            hallway_image, scaled_rect_width, scaled_rect_height, seed=segment_seed
+                        )
+                    screen.blit(tiled_hallway_cache[cache_key], (scaled_rect_x, scaled_rect_y))
+                else:
+                    scaled_hallway = pygame.transform.scale(hallway_image, (scaled_rect_width, scaled_rect_height))
+                    screen.blit(scaled_hallway, (scaled_rect_x, scaled_rect_y))
+                    
+                # Draw decorations for this segment
+                draw_decorations(screen, segment, scale_x, scale_y, camera_x, camera_y)
+            
+            # Handle portal animations
+            portalTime += elapsed_ms
+            if portalTime >= 500:
+                portalTime = 0
+                portalFrame = (portalFrame + 1) % len(entrancePortalAnimation)
+                
+            # Handle torch animations with randomized timing for less predictable flickering
+            torchTime += elapsed_ms
+            
+            # Use random timing between 50-120ms for unpredictable flickering
+            flicker_threshold = random.randint(50, 120)
+            
+            if torchTime >= flicker_threshold:
+                torchTime = 0
+                
+                # Occasionally skip frames or go backward for more natural flickering
+                if random.random() < 0.7:
+                    # Normal forward animation 70% of the time
+                    torchFrame = (torchFrame + 1) % len(torchAnimation)
+                elif random.random() < 0.5:
+                    # Jump to random frame 15% of the time
+                    torchFrame = random.randint(0, len(torchAnimation) - 1)
+                else:
+                    # Backward animation 15% of the time
+                    torchFrame = (torchFrame - 1) % len(torchAnimation)
+                    
+                # Update the torch in wall_decorations dictionary to the current frame
+                wall_decorations["torch"] = torchAnimation[torchFrame]
+            
+            # Draw portals with enhanced visuals - different sizes for entrance vs internal
+            if current_area == "entrance_hall":
+                for door in doors:
+                    door_x = door["x"] * scale_x - camera_x
+                    door_y = door["y"] * scale_y - camera_y
+                    # Pass is_entrance=True for entrance hall portals
+                    draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y, is_entrance=True)
+            
+                    if portal_to_level2["visible"]:
+                        door_x = portal_to_level2["x"] * scale_x - camera_x
+                        door_y = portal_to_level2["y"] * scale_y - camera_y
+                        draw_enhanced_portal(screen, portal_to_level2, door_x, door_y, scale_x, scale_y, camera_x, camera_y, is_entrance=True)
 
-        # If position is invalid, roll back to previous position
-        if not valid_position:
-            player.x, player.y = old_x, old_y
-            player.moving = False  # Stop the walking animation
-
-        # Update player state
-        player.update()
-            
-    # Camera positioning (only if not teleporting)
-    if not teleport_active:
-        scale_x = SCREEN_WIDTH / BASE_WIDTH
-        scale_y = SCREEN_HEIGHT / BASE_HEIGHT
-        scaled_player_x = int(player.x * scale_x)
-        scaled_player_y = int(player.y * scale_y)
-        camera_x = scaled_player_x - (SCREEN_WIDTH // 2)
-        camera_y = scaled_player_y - (SCREEN_HEIGHT // 2)
-        screen.fill(BLACK)
-        
-        # Get current hallway segments
-        current_hallway_segments = []
-        for segment in base_hallway:
-            start_x, start_y, end_x, end_y, width, image_key = segment
-            if image_key in area_hallways.get(current_area, []):
-                current_hallway_segments.append(segment)
-        
-        # Draw hallways and decorations
-        for segment in current_hallway_segments:
-            start_x, start_y, end_x, end_y, width, image_key = segment
-            half_width = width / 2
-            hallway_image = hallway_images.get(image_key, default_hallway_img)
-            
-            # Calculate segment rectangle
-            if start_y == end_y:
-                rect_x = min(start_x, end_x)
-                rect_y = start_y - half_width
-                rect_width = abs(end_x - start_x)
-                rect_height = width
-            else:
-                rect_x = start_x - half_width
-                rect_y = min(start_y, end_y)
-                rect_width = width
-                rect_height = abs(end_y - start_y)
                 
-            scaled_rect_x = rect_x * scale_x - camera_x
-            scaled_rect_y = rect_y * scale_y - camera_y
-            scaled_rect_width = int(rect_width * scale_x)
-            scaled_rect_height = int(rect_height * scale_y)
-            
-            # Draw hallway segment
-            if isinstance(hallway_image, list):
-                cache_key = (image_key, scaled_rect_width, scaled_rect_height)
-                if cache_key not in tiled_hallway_cache:
-                    segment_seed = hash(image_key)
-                    tiled_hallway_cache[cache_key] = tile_multiple_images(
-                        hallway_image, scaled_rect_width, scaled_rect_height, seed=segment_seed
-                    )
-                screen.blit(tiled_hallway_cache[cache_key], (scaled_rect_x, scaled_rect_y))
-            else:
-                scaled_hallway = pygame.transform.scale(hallway_image, (scaled_rect_width, scaled_rect_height))
-                screen.blit(scaled_hallway, (scaled_rect_x, scaled_rect_y))
-                
-            # Draw decorations for this segment
-            draw_decorations(screen, segment, scale_x, scale_y, camera_x, camera_y)
-        
-        # Handle portal animations
-        portalTime += elapsed_ms
-        if portalTime >= 500:
-            portalTime = 0
-            portalFrame = (portalFrame + 1) % len(entrancePortalAnimation)
-            
-        # Handle torch animations with randomized timing for less predictable flickering
-        torchTime += elapsed_ms
-        
-        # Use random timing between 50-120ms for unpredictable flickering
-        flicker_threshold = random.randint(50, 120)
-        
-        if torchTime >= flicker_threshold:
-            torchTime = 0
-            
-            # Occasionally skip frames or go backward for more natural flickering
-            if random.random() < 0.7:
-                # Normal forward animation 70% of the time
-                torchFrame = (torchFrame + 1) % len(torchAnimation)
-            elif random.random() < 0.5:
-                # Jump to random frame 15% of the time
-                torchFrame = random.randint(0, len(torchAnimation) - 1)
-            else:
-                # Backward animation 15% of the time
-                torchFrame = (torchFrame - 1) % len(torchAnimation)
-                
-            # Update the torch in wall_decorations dictionary to the current frame
-            wall_decorations["torch"] = torchAnimation[torchFrame]
-        
-        # Draw portals with enhanced visuals - different sizes for entrance vs internal
-        if current_area == "entrance_hall":
-            for door in doors:
+            elif current_area in area_transition_doors:
+                door = area_transition_doors[current_area]
                 door_x = door["x"] * scale_x - camera_x
                 door_y = door["y"] * scale_y - camera_y
-                # Pass is_entrance=True for entrance hall portals
-                draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y, is_entrance=True)
-        elif current_area in area_transition_doors:
-            door = area_transition_doors[current_area]
-            door_x = door["x"] * scale_x - camera_x
-            door_y = door["y"] * scale_y - camera_y
-            # Internal portal (is_entrance=False is default)
-            draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y)
-        elif current_area in area_return_doors:
-            door = area_return_doors[current_area]
-            door_x = door["x"] * scale_x - camera_x
-            door_y = door["y"] * scale_y - camera_y
-            # Internal portal (is_entrance=False is default)
-            draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y)
+                # Internal portal (is_entrance=False is default)
+                draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y)
+            elif current_area in area_return_doors:
+                door = area_return_doors[current_area]
+                door_x = door["x"] * scale_x - camera_x
+                door_y = door["y"] * scale_y - camera_y
+                # Internal portal (is_entrance=False is default)
+                draw_enhanced_portal(screen, door, door_x, door_y, scale_x, scale_y, camera_x, camera_y)
+            
+            # Update and draw movement trail effects        
+            movement_effects = [effect for effect in movement_effects if effect.update()]
+            for effect in movement_effects:
+                effect.draw(screen, scale_x, scale_y, camera_x, camera_y)
+            
+            # Update and draw particles
+            particles = [p for p in particles if p.update()]
+            for particle in particles:
+                particle.draw(screen, scale_x, scale_y, camera_x, camera_y)
+            
+            # Draw teleport particles
+            teleport_particles = [p for p in teleport_particles if p.update()]
+            for particle in teleport_particles:
+                particle.draw(screen, scale_x, scale_y, camera_x, camera_y)
+                    
+                    
+            dt = clock.tick(60) / 1000  
+            
+            for enemy in all_enemies:
+                screen.blit(enemy.image, (enemy.rect.x - camera_x, enemy.rect.y - camera_y))
+                enemy.update(dt, player)
+                
+                
+                if enemy.state == "attack" and player.check_collision(enemy):  
+                    check_enemy_attacks(player, all_enemies)
+                    player.take_damage(enemy.damage)  
+                    print(f"Player hit by enemy attack! Player HP: {player.health}/{player.max_health}")
+                
+                if isinstance(enemy, Boss1) and enemy.dead:
+                    boss1_defeated = True
+                    portal_to_level2["visible"] = True
+                    
+                    if portal_to_level2 not in doors:  # Add portal to doors list if not already there
+                        doors.append(portal_to_level2)
+                    print("Boss defeated! Portal added to doors list.")
+                    
+            check_enemy_attacks(player, all_enemies)
+            
+            if current_area == "entrance_hall" and all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss1)):
+                portal_to_level2["visible"] = True
+                boss1_defeated = True
+            
+            # Player update
+            player.update()
         
-        # Update and draw movement trail effects        
-        movement_effects = [effect for effect in movement_effects if effect.update()]
-        for effect in movement_effects:
-            effect.draw(screen, scale_x, scale_y, camera_x, camera_y)
-        
-        # Update and draw particles
-        particles = [p for p in particles if p.update()]
-        for particle in particles:
-            particle.draw(screen, scale_x, scale_y, camera_x, camera_y)
-        
-        # Draw teleport particles
-        teleport_particles = [p for p in teleport_particles if p.update()]
-        for particle in teleport_particles:
-            particle.draw(screen, scale_x, scale_y, camera_x, camera_y)
-        
-        # Draw player
-        # scaled_player_radius = int(player_radius * scale_x)
-        # pygame.draw.circle(screen, PLAYER_COLOR, (scaled_player_x - camera_x, scaled_player_y - camera_y), scaled_player_radius)
-        
-        
-        # Player update
-        player.update()
-        player.draw(screen)
-
-        
-        # Draw UI elements
-        draw_ui(screen)
+            # With this:
+            player_screen_x = player.x * scale_x - camera_x
+            player_screen_y = player.y * scale_y - camera_y
+            # Save original rect
+            original_rect = player.rect.copy()
+            # Set rect to screen position
+            player.rect.midbottom = (player_screen_x, player_screen_y)
+            # Draw the player
+            player.draw(screen)
+            # Restore original rect (important for collision detection)
+            player.rect = original_rect
     
-    # If teleport is active, draw the space teleport effect over everything
-    if teleport_active:
-        screen.fill(BLACK)  # Clear screen for teleport effect
-        draw_space_teleport(screen)
+            
+            # Draw UI elements
+            draw_ui(screen)
+            player.draw_main_health_bar(screen, 20, 40, 200, 20)
+            player.draw_ultimate_bar(screen, 20, 65, 200, 10)
+            
+            
+            # Check if player collides with the Level 2 portal
+            if portal_to_level2["visible"]:
+                if (portal_to_level2["x"] <= player.x <= portal_to_level2["x"] + portal_to_level2["width"] and 
+                    portal_to_level2["y"] <= player.y <= portal_to_level2["y"] + portal_to_level2["height"]):
+                    
+                    # Save player state to a file or global variables
+                    save_player_state(player)
+                    
+                    # Play teleport sound
+                    teleport_start_sound.play()
+                    
+                    # Exit the current game loop
+                    running = False
+                    
+                    # Load level2
+                    import level2  # Import the level2 module
+                    # Or use exec() to run the level2 file
+                    # exec(open("level2.py").read())
+                    
+                    # Exit this script
+                    sys.exit()
+            
+            for i, spark in sorted(enumerate(sparks), reverse=True):
+                spark.move(1)
+                # Position is already in world coordinates, we just need to apply scaling and camera offset
+                spark.draw(screen, camera_x, camera_y, scale_x, scale_y)
+                if not spark.alive:
+                    sparks.pop(i)                
+                
+        # If teleport is active, draw the space teleport effect over everything
+        if teleport_active:
+            screen.fill(BLACK)  # Clear screen for teleport effect
+            draw_space_teleport(screen)
+        
+        # Update display and maintain framerate
+        pygame.display.flip()
+        clock.tick(60)
+    else:
+        show_game_over_screen()
+        continue
     
-    # Update display and maintain framerate
-    pygame.display.flip()
-    clock.tick(60)
-
+    
 # Cleanup and exit
 pygame.quit()
 sys.exit()
