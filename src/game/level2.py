@@ -583,7 +583,6 @@ def update_space_teleport(elapsed_ms):
         teleport_end_sound.play()
         
         #spawn enemy
-        print("spawning enemies")
         spawn_enemies_for_area(teleport_destination_info["destination"])
         
         # Actually teleport the player
@@ -1234,8 +1233,6 @@ def spawn_enemies_for_area(area):
     """Spawn enemies when entering a new area."""
     global all_enemies
     all_enemies.empty()
-    print("Spawning enemies for area:", area)
-    print("Enemy positions:", enemy_positions)
 
     if area in enemy_positions:
         for enemy_type, pos in enemy_positions[area]:
@@ -1266,6 +1263,60 @@ def check_enemy_attacks(player, enemies):
                 # Deal damage to player
                 damage = enemy.get_damage()
                 player.take_damage(damage)
+
+
+message_text = None
+message_start_time = 0
+message_duration = 0
+
+def show_message(text, duration=3000):
+    #Displays a message on screen for a set time 
+    global message_text, message_start_time, message_duration
+
+    if message_text is None: 
+        message_text = text
+        message_start_time = pygame.time.get_ticks()
+        message_duration = duration
+
+def update_messages():
+    #Draws the message with line wrapping if it's too long and removes it after the duration.
+    global message_text, message_start_time, message_duration
+
+    if message_text:
+        elapsed_time = pygame.time.get_ticks() - message_start_time
+        if elapsed_time < message_duration:
+            font = pygame.font.SysFont('Arial', 28, bold=True)
+            
+            # Word wrap if message is too long
+            max_width = SCREEN_WIDTH - 100  # Adjust margin if needed
+            words = message_text.split()
+            lines = []
+            current_line = ""
+
+            for word in words:
+                test_line = current_line + word + " "
+                test_surface = font.render(test_line, True, (255, 255, 255))
+                if test_surface.get_width() > max_width:
+                    lines.append(current_line)
+                    current_line = word + " "
+                else:
+                    current_line = test_line
+            lines.append(current_line)  # Add the last line
+
+            # Display the lines
+            y_offset = 100  # Starting Y position
+            for line in lines:
+                message_surface = font.render(line, True, (255, 255, 255))
+                message_rect = message_surface.get_rect(center=(SCREEN_WIDTH // 2, y_offset))
+                screen.blit(message_surface, message_rect)
+                y_offset += 35  # Move down for the next line
+
+        else:
+            message_text = None  # Clear message after duration
+            message_duration = 0
+
+
+
 
 
 def show_victory_screen():
@@ -1307,6 +1358,7 @@ def shake_screen():
     return False
 
 princess = Princess(3200, 2400)  # Adjust spawn position
+princess_saved = False
 
 sparks = []
 shake_intensity = 0 
@@ -1396,8 +1448,6 @@ while running:
             camera_y = scaled_player_y - (SCREEN_HEIGHT // 2) 
         
         shake_applied = shake_screen()
-        if shake_applied:
-            print(f"Shake applied: remaining duration={shake_duration}")
         
         current_hallway_segments = []
         for segment in base_hallway:
@@ -1496,15 +1546,13 @@ while running:
             screen.blit(scaled_mask, (draw_x, draw_y))
         else:
             screen.blit(scaled_image, (draw_x, draw_y))
-    
-        if previous_area != current_area:
-            print(f"Area changed from {previous_area} to {current_area}")
+
             
-        # Check if we're entering the boss room
+        # Check if entering the boss room
         if current_area == "Boss_room" and previous_area != "Boss_room":
-            print("Entering Boss room! Triggering shake!")
             shake_intensity = 20
             shake_duration = 40
+            show_message("You have finally arrived! You will never be able to save the princess. HAHAHAHA", 3000)
         
         # Update previous_area for next frame
         previous_area = current_area
@@ -1512,6 +1560,9 @@ while running:
         
         if current_area == "Boss_room" and all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss2)):
             princess.following_player = True
+            if not princess_saved:
+                show_message("You've rescued me! Thank you!", 3000)
+                princess_saved = True
         
         # Update and draw the princess in the appropriate areas
         if current_area == "Boss_room" or (current_area == "Boss_room" and princess.following_player):
@@ -1526,7 +1577,6 @@ while running:
         
         for i, spark in sorted(enumerate(sparks), reverse=True):
             spark.move(1)
-            # Position is already in world coordinates, we just need to apply scaling and camera offset
             spark.draw(screen, camera_x, camera_y, scale_x, scale_y)
             if not spark.alive:
                 sparks.pop(i)
@@ -1573,7 +1623,7 @@ while running:
         if victory_activated:
             show_victory_screen()
 
-        
+        update_messages()
         pygame.display.flip()
         clock.tick(60)
     

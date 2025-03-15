@@ -55,7 +55,7 @@ def load_mob_animations(mob_name, scale=0.6):
 
 # Enemy Class
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y, animations, is_in_hallway_func, health=100):
+    def __init__(self, x, y, animations, is_in_hallway_func, health=70):
         super().__init__()
         self.animations = animations
         self.is_in_hallway = is_in_hallway_func  # Store the function reference
@@ -321,29 +321,6 @@ class Enemy(pygame.sprite.Sprite):
         """Return the damage this enemy deals"""
         return self.damage
 
-    # def draw_healthbar(self, screen, camera_offset_x=0, camera_offset_y=0):
-    #     bar_width = 50
-    #     bar_height = 5
-    #     fill = (self.health / self.max_health) * bar_width
-        
-    #     # Position the bar above the enemy WITH camera offset
-    #     bar_x = self.rect.x - camera_offset_x + (self.rect.width // 2) - (bar_width // 2)
-    #     bar_y = self.rect.y - camera_offset_y - bar_height - 5
-        
-    #     # Ensure bar stays within screen bounds
-    #     if bar_y < 0:
-    #         bar_y = 0
-        
-    #     outline_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
-    #     fill_rect = pygame.Rect(bar_x, bar_y, fill, bar_height)
-        
-    #     pygame.draw.rect(screen, (255, 0, 0), outline_rect)
-    #     pygame.draw.rect(screen, (0, 255, 0), fill_rect)
-
-
-
-
-
 
 # Load Golem Animations
 def load_golem_animations(scale=0.8, flip=False):
@@ -361,7 +338,7 @@ def load_golem_animations(scale=0.8, flip=False):
 
 # Golem Class
 class Golem(Enemy):
-    def __init__(self, x, y, is_in_hallway_func, health=150):
+    def __init__(self, x, y, is_in_hallway_func, health=120):
         # Load animations specifically for golem
         animations = {
             "idle": load_animation("enemies/level2/Golem1_idle", "png", 6, 0.8),
@@ -538,7 +515,7 @@ class Golem(Enemy):
 
 
 class Boss2(Enemy):
-    def __init__(self, x, y, is_in_hallway_func, health=300):
+    def __init__(self, x, y, is_in_hallway_func, health=30):
         # Load animations specifically for Boss2
         animations = {
             "idle": load_animation("enemies/level2/boss_idle", "png", 3, 1.0),
@@ -578,22 +555,22 @@ class Boss2(Enemy):
         super().__init__(x, y, animations, is_in_hallway_func, health)
         
         # Boss-specific attributes
-        self.speed = 1.2  # Slower movement
+        self.speed = 1.5  # movement speed
         self.damage = 35  # Higher damage
-        self.detection_radius = 300  # Larger detection radius
+        self.detection_radius = 500  # Larger detection radius
         self.attack_radius = 100  # Larger attack radius
         self.attack_cooldown = 2000  # Longer cooldown between attacks
         
         # Special attack attributes
         self.special_attack_cooldown = 8000  # Time between special attacks (ms)
         self.special_attack_timer = 0  # Current special attack cooldown timer
-        self.is_charging_special = False  # Whether boss is preparing a special attack
+        self.is_charging_special = False  # Wether boss is preparing a special attack
         self.projectiles = []  # List to store active projectiles
         
         # Projectile range limits
-        self.projectile_max_distance = 500  # Maximum distance projectiles can travel
+        self.projectile_max_distance = 300  # Maximum distance projectiles can travel
         self.ranged_attack_min_distance = 100  # Minimum distance for ranged attacks
-        self.ranged_attack_max_distance = 250  # Preferred distance for ranged attacks
+        self.ranged_attack_max_distance = 200  # Preferred distance for ranged attacks
         
         # Boss phases
         self.max_health = health
@@ -605,7 +582,7 @@ class Boss2(Enemy):
         self.phase_threshold = 0.5  # Boss enters phase 2 at 50% health
         self.is_angry = False  # Track if boss is in angry state
         self.angry_timer = 0  # Timer for angry state
-        self.angry_duration = 5000  # Duration of angry state in ms
+        self.angry_duration = 3000  # Duration of angry state in ms
     
     def update(self, dt, player=None):
         """Update boss state, animations, movement, and attacks."""
@@ -920,9 +897,23 @@ class Boss2(Enemy):
             projectile["frame_timer"] += dt
             if projectile["frame_timer"] > projectile["frame_delay"]:
                 projectile["frame_timer"] = 0
-                projectile["frame"] = (projectile["frame"] + 1) % len(projectile["animation"])
+                
+                
+                if projectile["frame"] < len(projectile["animation"]) - 1:
+                    projectile["frame"] += 1
+                else:
+                    
+                    if projectile["type"] == "ice_projectile":
+                        #frames 2-4 are the "traveling" ice animation
+                        projectile["frame"] = 2 + (projectile["frame"] - 2) % 3
+                    
+                    elif projectile["type"] == "lightning_projectile":
+                        #frames 3-7 are the "traveling" lightning animation
+                        projectile["frame"] = 3 + (projectile["frame"] - 3) % 5
+                
                 # Update mask with new frame
                 projectile["mask"] = pygame.mask.from_surface(projectile["animation"][projectile["frame"]])
+
             
             # Calculate traveled distance
             traveled_distance = math.sqrt(
@@ -1088,7 +1079,7 @@ class Boss2(Enemy):
         
         
 class Boss1(Enemy):
-    def __init__(self, x, y, is_in_hallway_func, health=20):
+    def __init__(self, x, y, is_in_hallway_func, health=180):
         # Load animations specifically for Boss1
         animations = {
             # Default idle state (needed by parent class)

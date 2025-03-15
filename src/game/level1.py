@@ -1698,9 +1698,8 @@ while running:
             valid_position = True
     
             # Special handling for entrance hall (cave shape)
-            # Special handling for entrance hall (cave shape)
             if current_area == "entrance_hall":
-                # Base on the visible cave floor in the screenshot
+                # Base on the visible cave floor
                 # The floor area (bottom of screen)
                 if player.y >= 465:  # Bottom area
                     min_x = 320  # Left boundary

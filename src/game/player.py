@@ -27,7 +27,7 @@ class Character:
         self.frame_counts = {}
         self.animation_speeds = {
             'idle': 100, 'move': 80, 'attack': 50,
-            'ultimate': 40, 'death': 120, 'jump': 70,
+            'ultimate': 30, 'death': 120, 'jump': 70,
             'shield': 60, 'hurt': 60  # Add hurt animation speed
         }
         self.frame_index = 0
