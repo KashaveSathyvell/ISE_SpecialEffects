@@ -12,6 +12,7 @@ from powerups import Spark
 # Initialize Pygame
 pygame.init()
 pygame.mixer.init()  # Initialize sound system
+pygame.mixer.set_num_channels(32) 
 
 # Base resolution (game logic uses these coordinates)
 BASE_WIDTH = 800
@@ -21,7 +22,7 @@ BASE_HEIGHT = 500
 SCREEN_WIDTH = BASE_WIDTH
 SCREEN_HEIGHT = BASE_HEIGHT
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("Dungeon Hallway Level 1")
+pygame.display.set_caption("Dungeon Rescue")
 
 # Colors
 GREEN = (32, 96, 32)
@@ -30,6 +31,15 @@ WHITE = (255, 255, 255)
 PLAYER_COLOR = (74, 128, 245)
 DOOR_COLOR = (150, 75, 0)
 DOOR_FRAME_COLOR = (180, 100, 20)
+
+
+# Load and play background music
+try:
+    pygame.mixer.music.load(os.path.join("src", "assets", "sounds", "level1_bg_music.mp3"))
+    pygame.mixer.music.set_volume(0.3)  # Adjust volume (0.0 to 1.0)
+    pygame.mixer.music.play(-1)  # Loop indefinitely
+except pygame.error as e:
+    print(f"Error loading background music: {e}")
 
 
 def show_story_screen():
@@ -79,7 +89,7 @@ def show_story_screen():
 
 
 # --- Player Setup ---
-player = Character(400, 667, "Knight", 75)  # (x, y, character type, HP)
+player = Character(400, 667, "Knight", 85, 100)  # (x, y, character type, HP)
 player.speed = 3  # Set movement speeds
 
 boss1_defeated = False  # Track if Boss1 is defeated
@@ -113,7 +123,7 @@ doors = [
 
 portal_to_level2 = {
     "x": 380, "y": 529, "width": 40, "height": 65,
-    "destination": "level2", "dest_x": 400, "dest_y": 450, 
+    "destination": "level2", "dest_x": 120, "dest_y": 425, 
     "name": "Portal to Level 2",
     "visible": False  # Initially hidden
 }
@@ -130,9 +140,9 @@ area_transition_doors = {
 
 # Return doors for paths
 area_return_doors = {
-    "left_path": {"x": 250, "y": 430, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 500, "name": "Return to Entrance"},
-    "right_path": {"x": 550, "y": 430, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 500, "name": "Return to Entrance"},
-    "final_area": {"x": 400, "y": 100, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 500, "name": "Return to Entrance"}
+    "left_path": {"x": 250, "y": 430, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 667, "name": "Return to Entrance"},
+    "right_path": {"x": 550, "y": 430, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 667, "name": "Return to Entrance"},
+    "final_area": {"x": 400, "y": 100, "width": 40, "height": 65, "destination": "entrance_hall", "dest_x": 400, "dest_y": 667, "name": "Return to Entrance"}
 }
 
 # The current area the player is in
@@ -141,7 +151,7 @@ current_area = "entrance_hall"
 # Base hallway definitions for Level 1
 base_hallway = [
     # === ENTRANCE CAVE (starting area) ===
-    [400, 650, 400, 400, 500, "entrance_hall"],  # Main entrance path
+    [400, 680, 400, 400, 500, "entrance_hall"],  # Main entrance path
     
     # === LEFT PATH (more extensive) ===
     [250, 450, 250, 200, 120, "left_corridor"],  # Longer vertical corridor
@@ -1491,8 +1501,6 @@ def spawn_enemies_for_area(area):
     """Spawn enemies when entering a new area."""
     global all_enemies
     all_enemies.empty()
-    print("Spawning enemies for area:", area)
-    print("Enemy positions:", enemy_positions)
 
     if area in enemy_positions:
         for enemy_type, pos in enemy_positions[area]:
@@ -1502,7 +1510,6 @@ def spawn_enemies_for_area(area):
                 animations = load_mob_animations(enemy_type)
                 enemy = Enemy(pos[0], pos[1], animations, is_in_hallway)
             
-            print("Spawning enemies")
             all_enemies.add(enemy)
 
 
@@ -1579,6 +1586,32 @@ def reset_player():
     
     all_enemies.empty()
     
+    
+def show_level_transition(text):
+    #Displays a transition screen before switching levels.
+    font = pygame.font.SysFont('Arial', 48, bold=True)
+    text_surface = font.render(text, True, (255, 255, 255))
+    text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+
+    fade_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    fade_surface.fill((0, 0, 0))  # Black background
+
+    fade_alpha = 0
+    fade_duration = 2000  # Transition lasts 2 seconds
+    start_time = pygame.time.get_ticks()
+
+    while pygame.time.get_ticks() - start_time < fade_duration:
+        fade_alpha = min(255, (pygame.time.get_ticks() - start_time) / fade_duration * 255)
+        fade_surface.set_alpha(int(fade_alpha))  #
+
+        screen.fill((0, 0, 0))  # Clear screen
+        screen.blit(fade_surface, (0, 0))
+        screen.blit(text_surface, text_rect)
+
+        pygame.display.flip()
+        clock.tick(60)  # Maintain frame rate
+
+
 # Global variable to store player data
 player_state = {}
 
@@ -1599,6 +1632,8 @@ movement_effects = []
 particles = []
 step_counter = 0
 running = True
+
+boss_defeat_count = 0
 
 sparks = []
 
@@ -1674,12 +1709,11 @@ while running:
             # Handle normal player movement
             scale_x = SCREEN_WIDTH / BASE_WIDTH
             scale_y = SCREEN_HEIGHT / BASE_HEIGHT
-            keys = pygame.key.get_pressed()
             original_pos = (player.x, player.y)
-    
+
+            keys = pygame.key.get_pressed()
+
             old_x, old_y = player.x, player.y
-    
-            # Calculate movement
             dx, dy = 0, 0
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                 dx = -player.speed
@@ -1689,9 +1723,9 @@ while running:
                 dy = -player.speed
             if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                 dy = player.speed
-    
-            # Apply movement
             player.move(dx, dy)
+            if not is_in_hallway(player.x, player.y):
+                player.x, player.y = old_x, old_y
             
     
             # Check if new position is valid
@@ -1867,19 +1901,17 @@ while running:
                     player.take_damage(enemy.damage)  
                     print(f"Player hit by enemy attack! Player HP: {player.health}/{player.max_health}")
                 
-                if isinstance(enemy, Boss1) and enemy.dead:
+                if current_area == "right_path" and all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss1)):
+                    if boss_defeat_count == 0:
+                        boss_defeat_count += 1
+                        print (boss_defeat_count, ": boss defeated")
                     boss1_defeated = True
                     portal_to_level2["visible"] = True
                     
                     if portal_to_level2 not in doors:  # Add portal to doors list if not already there
                         doors.append(portal_to_level2)
-                    print("Boss defeated! Portal added to doors list.")
                     
             check_enemy_attacks(player, all_enemies)
-            
-            if current_area == "entrance_hall" and all(enemy.dead for enemy in all_enemies if isinstance(enemy, Boss1)):
-                portal_to_level2["visible"] = True
-                boss1_defeated = True
             
             # Player update
             player.update()
@@ -1904,9 +1936,10 @@ while running:
             
             
             # Check if player collides with the Level 2 portal
-            if portal_to_level2["visible"]:
+            if portal_to_level2["visible"] and boss_defeat_count > 0:
                 if (portal_to_level2["x"] <= player.x <= portal_to_level2["x"] + portal_to_level2["width"] and 
                     portal_to_level2["y"] <= player.y <= portal_to_level2["y"] + portal_to_level2["height"]):
+                    pygame.mixer.music.stop()
                     
                     # Save player state to a file or global variables
                     save_player_state(player)
@@ -1914,15 +1947,13 @@ while running:
                     # Play teleport sound
                     teleport_start_sound.play()
                     
-                    # Exit the current game loop
+                    show_level_transition("Level 2")  
+                    
+                    # Exit lvl1 game loop
                     running = False
                     
                     # Load level2
-                    import level2  # Import the level2 module
-                    # Or use exec() to run the level2 file
-                    # exec(open("level2.py").read())
-                    
-                    # Exit this script
+                    import level2 
                     sys.exit()
             
             for i, spark in sorted(enumerate(sparks), reverse=True):

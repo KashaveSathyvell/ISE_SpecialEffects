@@ -11,6 +11,8 @@ from princess import Princess
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()  # Initialize sound system
+pygame.mixer.set_num_channels(32) 
 
 # Base resolution (game logic uses these coordinates)
 BASE_WIDTH = 800
@@ -20,7 +22,7 @@ BASE_HEIGHT = 500
 SCREEN_WIDTH = BASE_WIDTH
 SCREEN_HEIGHT = BASE_HEIGHT
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("Dungeon Hallway Level 2")
+pygame.display.set_caption("Dungeon Rescue")
 
 # Colors
 GREEN = (32, 96, 32)
@@ -28,10 +30,37 @@ BLACK = (13, 27, 10)
 WHITE = (255, 255, 255)
 PLAYER_COLOR = (74, 128, 245)
 
+try:
+    bg_music = os.path.join("src", "assets", "sounds", "level2_bg_music.mp3")
+    boss_music = os.path.join("src", "assets", "sounds", "Boss_level2_music.mp3") 
+    victory = os.path.join("src", "assets", "sounds", "level2_complete.wav")
+    Boss_taunt = os.path.join("src", "assets", "sounds", "Boss2_Taunt.wav")
+    current_music = None  # Track which music is currently playing
+except pygame.error as e:
+    print(f"Error loading music files: {e}")
+
+# Function to switch music
+def switch_music(music_file, loop=True, fade_ms=2000):
+    global current_music
+    if current_music != music_file: 
+        current_music = music_file
+        try:
+            pygame.mixer.music.fadeout(fade_ms)  # Fade out current music
+            pygame.mixer.music.load(music_file)
+            pygame.mixer.music.set_volume(0.4)
+            if loop:
+                pygame.mixer.music.play(-1, fade_ms=fade_ms)  # Loop with fade-in
+            else:
+                pygame.mixer.music.play(0, fade_ms=fade_ms)  # Play once with fade-in
+        except pygame.error as e:
+            print(f"Error switching music: {e}")
+
+
+switch_music(bg_music)
 
 # Create the player(x is center, y is bottom)
-player = Character(120, 425, "Knight", 75)
-player.speed = 5  # Set speed as desired
+player = Character(120, 425, "Knight", 85, 150)
+player.speed = 5  # Set speed
 
 # Set frame counts so the animations load properly.
 frame_counts = {
@@ -53,14 +82,14 @@ victory_activated = False
 # Door system for the Entrance Hall
 doors = [
     {"x": 200, "y": 415, "width": 40, "height": 65,
-     "destination": "western_wing", "dest_x": 175, "dest_y": 500, "name": "Western Wing"},
+     "destination": "western_wing", "dest_x": 125, "dest_y": 500, "name": "Western Wing"},
     {"x": 400, "y": 415, "width": 40, "height": 65,
      "destination": "central_pathways", "dest_x": 500, "dest_y": 450, "name": "Central Pathways"},
     {"x": 600, "y": 415, "width": 40, "height": 65,
      "destination": "eastern_complex", "dest_x": 1600, "dest_y": 350, "name": "Eastern Complex"},
     # Changed this door to lead directly to the Boss Arena:
     {"x": 800, "y": 415, "width": 40, "height": 65,
-     "destination": "Boss_room", "dest_x": 2400, "dest_y": 2200, "name": "Boss Room"}
+     "destination": "Boss_room", "dest_x": 2400, "dest_y": 2400, "name": "Boss Room"}
 ]
 
 # New area transition door (if needed)
@@ -74,9 +103,9 @@ area_transition_doors = {
 
 # Return doors (for teleporting back to the entrance)
 area_return_doors = {
-    "western_wing": {"x": 175, "y": 450, "destination": "entrance_hall", "dest_x": 200, "dest_y": 450, "name": "Return to Entrance"},
-    "central_pathways": {"x": 500, "y": 450, "destination": "entrance_hall", "dest_x": 400, "dest_y": 300, "name": "Return to Entrance"},
-    "eastern_complex": {"x": 1600, "y": 350, "destination": "entrance_hall", "dest_x": 600, "dest_y": 300, "name": "Return to Entrance"},
+    "western_wing": {"x": 175, "y": 450, "destination": "entrance_hall", "dest_x": 120, "dest_y": 425, "name": "Return to Entrance"},
+    "central_pathways": {"x": 500, "y": 450, "destination": "entrance_hall", "dest_x": 120, "dest_y": 425, "name": "Return to Entrance"},
+    "eastern_complex": {"x": 1600, "y": 350, "destination": "entrance_hall", "dest_x": 120, "dest_y": 425, "name": "Return to Entrance"},
     "boss_arena": {"x": 2400, "y": 2200, "destination": "entrance_hall", "dest_x": 500, "dest_y": 300, "name": "Emergency Exit"}
 }
 
@@ -1151,19 +1180,6 @@ for obj in objects:
     obj = Objects(obj["x"], obj["y"], load_image(obj["image_file"], scale=obj["scale"]), obj["area"])
     GameObjects.append(obj)
 
-clock = pygame.time.Clock()
-movement_effects = []
-step_counter = 0
-running = True
-
-tiled_hallway_cache = {}
-
-fade_alpha = 0
-is_fading = False
-fade_in = False
-fade_speed = 15
-destination_info = None
-
 
 def show_game_over_screen():
     global running
@@ -1244,15 +1260,14 @@ def spawn_enemies_for_area(area):
                 animations = load_mob_animations(enemy_type)
                 enemy = Enemy(pos[0], pos[1], animations, is_in_hallway)
             
-            print("Spawning enemies")
             all_enemies.add(enemy)
 
 
 
 def check_enemy_attacks(player, enemies):
-    """Check for enemy attacks hitting the player"""
+    #Check for enemy attacks hitting the player
     for enemy in enemies:
-        # Only check enemies that are currently in an attack state
+        # check enemies  in an attack state
         if enemy.can_attack():
             # Calculate offset for mask collision detection
             offset_x = enemy.rect.x - player.rect.x
@@ -1303,6 +1318,13 @@ def update_messages():
                     current_line = test_line
             lines.append(current_line)  # Add the last line
 
+            # Calculate total text height and create background surface
+            text_height = len(lines) * 35
+            background_surface = pygame.Surface((SCREEN_WIDTH - 60, text_height + 20), pygame.SRCALPHA)
+            background_surface.fill((0, 0, 0, 200))  # Black background with some transparency
+            background_rect = background_surface.get_rect(center=(SCREEN_WIDTH // 2, 100 + text_height // 2))
+            screen.blit(background_surface, background_rect)
+
             # Display the lines
             y_offset = 100  # Starting Y position
             for line in lines:
@@ -1317,8 +1339,6 @@ def update_messages():
 
 
 
-
-
 def show_victory_screen():
     font = pygame.font.SysFont('Arial', 48)
     victory_text = font.render("Princess Rescued!!", True, (255, 255, 0))
@@ -1329,12 +1349,13 @@ def show_victory_screen():
 
     # Scale images
     princess_scaled = pygame.transform.scale(princess_img, (100, 150))
-    player_scaled = pygame.transform.scale(player_img, (400, 300))
+    player_scaled = pygame.transform.scale(player_img, (370, 270))
 
     while True:
+        switch_music(victory)
         screen.fill((0, 0, 0))  # Black background
         screen.blit(victory_text, (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 100))
-        screen.blit(player_scaled, (SCREEN_WIDTH // 2 - 120, SCREEN_HEIGHT // 2 + 50))
+        screen.blit(player_scaled, (SCREEN_WIDTH // 2 - 320, SCREEN_HEIGHT // 2 + 30))
         screen.blit(princess_scaled, (SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT // 2 + 50))
         
         pygame.display.flip()
@@ -1365,6 +1386,19 @@ shake_intensity = 0
 shake_duration = 0
 
 initialize_space_particles(200) 
+
+clock = pygame.time.Clock()
+movement_effects = []
+step_counter = 0
+running = True
+
+tiled_hallway_cache = {}
+
+fade_alpha = 0
+is_fading = False
+fade_in = False
+fade_speed = 15
+destination_info = None
 
 while running:
     if not player.dead:
@@ -1553,6 +1587,14 @@ while running:
             shake_intensity = 20
             shake_duration = 40
             show_message("You have finally arrived! You will never be able to save the princess. HAHAHAHA", 3000)
+            switch_music(boss_music)
+            
+            try:
+                taunt_sound = pygame.mixer.Sound(Boss_taunt)
+                taunt_sound.set_volume(0.8)  # Adjust volume as needed
+                taunt_sound.play()
+            except pygame.error as e:
+                print(f"Error playing boss taunt sound: {e}")
         
         # Update previous_area for next frame
         previous_area = current_area
@@ -1562,6 +1604,7 @@ while running:
             princess.following_player = True
             if not princess_saved:
                 show_message("You've rescued me! Thank you!", 3000)
+                switch_music(bg_music)
                 princess_saved = True
         
         # Update and draw the princess in the appropriate areas
